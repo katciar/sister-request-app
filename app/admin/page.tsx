@@ -85,27 +85,49 @@ export default function AdminPage() {
     setLoading(false);
   }
 
-  async function updateRequestStatus(
-    id: number,
-    nextStatus: "approved" | "denied"
-  ) {
-    const { error } = await supabase
-      .from("requests")
-      .update({ status: nextStatus })
-      .eq("id", id);
+async function updateRequestStatus(
+  id: number,
+  nextStatus: "approved" | "denied"
+) {
+  if (nextStatus === "approved") {
+    const res = await fetch("/api/approve-request", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ requestId: id }),
+    });
 
-    if (error) {
-      console.error("UPDATE ERROR:", error);
-      setMessage(`Could not update request: ${error.message}`);
+    const data = await res.json();
+
+    if (!res.ok) {
+      setMessage(data.message || "Could not approve request.");
       return;
     }
 
     setMessage(
-      nextStatus === "approved" ? "Request approved." : "Request denied."
+      data.invitedLauren
+        ? "Request approved and Lauren was invited."
+        : "Request approved and event was added to your calendar."
     );
 
     await loadRequests();
+    return;
   }
+
+  const { error } = await supabase
+    .from("requests")
+    .update({ status: "denied" })
+    .eq("id", id);
+
+  if (error) {
+    setMessage(`Could not update request: ${error.message}`);
+    return;
+  }
+
+  setMessage("Request denied.");
+  await loadRequests();
+}
 
   const counts = useMemo(() => {
     return {

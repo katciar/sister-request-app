@@ -10,6 +10,7 @@ export default function HomePage() {
   const [message, setMessage] = useState("");
 
   const [form, setForm] = useState({
+    whoAreYou: "",
     requestTitle: "",
     date: "",
     startTime: "",
@@ -40,7 +41,13 @@ export default function HomePage() {
   async function submitRequest(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!form.requestTitle || !form.date || !form.startTime || !form.endTime) {
+    if (
+      !form.whoAreYou.trim() ||
+      !form.requestTitle.trim() ||
+      !form.date ||
+      !form.startTime ||
+      !form.endTime
+    ) {
       setMessage("Please fill out all required fields.");
       return;
     }
@@ -63,7 +70,8 @@ export default function HomePage() {
 
     const { error } = await supabase.from("requests").insert([
       {
-        request_title: form.requestTitle,
+        who_are_you: form.whoAreYou.trim(),
+        request_title: form.requestTitle.trim(),
         date: form.date,
         start_time: form.startTime,
         end_time: form.endTime,
@@ -76,13 +84,13 @@ export default function HomePage() {
     ]);
 
     if (error) {
-      console.error("INSERT ERROR:", error);
       setMessage(`Could not save request: ${error.message}`);
       setSubmitting(false);
       return;
     }
 
     setForm({
+      whoAreYou: "",
       requestTitle: "",
       date: "",
       startTime: "",
@@ -101,9 +109,7 @@ export default function HomePage() {
     <main style={styles.page}>
       <div style={styles.container}>
         <h1 style={styles.title}>Sister Stop By Request</h1>
-        <p style={styles.subtitle}>
-          Submit a request for a date and time.
-        </p>
+        <p style={styles.subtitle}>Submit a request for a date and time.</p>
 
         {message ? <div style={styles.message}>{message}</div> : null}
 
@@ -111,6 +117,18 @@ export default function HomePage() {
           <h2>Submit a request</h2>
 
           <form onSubmit={submitRequest} style={styles.form}>
+            <label style={styles.label}>
+              Who are you?
+              <input
+                style={styles.input}
+                value={form.whoAreYou}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, whoAreYou: e.target.value }))
+                }
+                placeholder="Example: Lauren"
+              />
+            </label>
+
             <label style={styles.label}>
               What is the Request
               <input
