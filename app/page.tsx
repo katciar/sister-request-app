@@ -1,28 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type EquipmentOption = "bed" | "desk" | "kitchen" | "other";
-type RequestStatus = "pending" | "approved" | "denied";
-
-type RequestItem = {
-  id: number;
-  created_at?: string;
-  request_title: string;
-  date: string;
-  start_time: string;
-  end_time: string;
-  sleepover: "yes" | "no";
-  equipment_required: EquipmentOption[];
-  other_equipment: string | null;
-  purpose: string | null;
-  status: RequestStatus;
-};
 
 export default function HomePage() {
-  const [requests, setRequests] = useState<RequestItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -36,37 +19,6 @@ export default function HomePage() {
     otherEquipment: "",
     purpose: "",
   });
-
-  useEffect(() => {
-    loadRequests();
-  }, []);
-
-  async function loadRequests() {
-    setLoading(true);
-
-    const { data, error } = await supabase
-      .from("requests")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("LOAD ERROR:", error);
-      setMessage(`Could not load requests: ${error.message}`);
-      setLoading(false);
-      return;
-    }
-
-    setRequests((data ?? []) as RequestItem[]);
-    setLoading(false);
-  }
-
-  const counts = useMemo(() => {
-    return {
-      pending: requests.filter((r) => r.status === "pending").length,
-      approved: requests.filter((r) => r.status === "approved").length,
-      denied: requests.filter((r) => r.status === "denied").length,
-    };
-  }, [requests]);
 
   function toggleEquipment(option: EquipmentOption) {
     setForm((prev) => {
@@ -141,49 +93,8 @@ export default function HomePage() {
       purpose: "",
     });
 
-    setMessage("Request saved.");
+    setMessage("Request submitted.");
     setSubmitting(false);
-    await loadRequests();
-  }
-
-  async function updateRequestStatus(
-    id: number,
-    nextStatus: "approved" | "denied"
-  ) {
-    const { error } = await supabase
-      .from("requests")
-      .update({ status: nextStatus })
-      .eq("id", id);
-
-    if (error) {
-      console.error("UPDATE ERROR:", error);
-      setMessage(`Could not update request: ${error.message}`);
-      return;
-    }
-
-    setMessage(
-      nextStatus === "approved" ? "Request approved." : "Request denied."
-    );
-
-    await loadRequests();
-  }
-
-  function formatEquipment(request: RequestItem) {
-    const labels = request.equipment_required.map((item) => {
-      if (item === "bed") return "Bed";
-      if (item === "desk") return "Desk";
-      if (item === "kitchen") return "Kitchen";
-      return "Other";
-    });
-
-    if (
-      request.equipment_required.includes("other") &&
-      request.other_equipment
-    ) {
-      return `${labels.join(", ")} (${request.other_equipment})`;
-    }
-
-    return labels.join(", ");
   }
 
   return (
@@ -191,257 +102,167 @@ export default function HomePage() {
       <div style={styles.container}>
         <h1 style={styles.title}>Sister Stop By Request</h1>
         <p style={styles.subtitle}>
-          She submits a request, and you review it in your admin view.
+          Submit a request for a date and time.
         </p>
-
-        <div style={styles.statsRow}>
-          <div style={styles.statCard}>
-            <strong>{counts.pending}</strong>
-            <span>Pending</span>
-          </div>
-          <div style={styles.statCard}>
-            <strong>{counts.approved}</strong>
-            <span>Approved</span>
-          </div>
-          <div style={styles.statCard}>
-            <strong>{counts.denied}</strong>
-            <span>Denied</span>
-          </div>
-        </div>
 
         {message ? <div style={styles.message}>{message}</div> : null}
 
-        <div style={styles.grid}>
-          <section style={styles.card}>
-            <h2>Submit a request</h2>
+        <section style={styles.card}>
+          <h2>Submit a request</h2>
 
-            <form onSubmit={submitRequest} style={styles.form}>
+          <form onSubmit={submitRequest} style={styles.form}>
+            <label style={styles.label}>
+              What is the Request
+              <input
+                style={styles.input}
+                value={form.requestTitle}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    requestTitle: e.target.value,
+                  }))
+                }
+                placeholder="Example: Stop by after work"
+              />
+            </label>
+
+            <label style={styles.label}>
+              Date
+              <input
+                style={styles.input}
+                type="date"
+                value={form.date}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, date: e.target.value }))
+                }
+              />
+            </label>
+
+            <div style={styles.timeRow}>
               <label style={styles.label}>
-                What is the Request
+                Start time
                 <input
                   style={styles.input}
-                  value={form.requestTitle}
+                  type="time"
+                  value={form.startTime}
                   onChange={(e) =>
                     setForm((prev) => ({
                       ...prev,
-                      requestTitle: e.target.value,
+                      startTime: e.target.value,
                     }))
                   }
-                  placeholder="Example: Stop by after work"
                 />
               </label>
 
               <label style={styles.label}>
-                Date
+                End time
                 <input
                   style={styles.input}
-                  type="date"
-                  value={form.date}
+                  type="time"
+                  value={form.endTime}
                   onChange={(e) =>
-                    setForm((prev) => ({ ...prev, date: e.target.value }))
+                    setForm((prev) => ({ ...prev, endTime: e.target.value }))
                   }
                 />
               </label>
+            </div>
 
-              <div style={styles.timeRow}>
-                <label style={styles.label}>
-                  Start time
+            <label style={styles.label}>
+              Is this a sleepover request?
+              <select
+                style={styles.input}
+                value={form.sleepover}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    sleepover: e.target.value as "yes" | "no",
+                  }))
+                }
+              >
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
+            </label>
+
+            <div style={styles.label}>
+              <span>Equipment required</span>
+
+              <div style={styles.checkboxGroup}>
+                <label style={styles.checkboxLabel}>
                   <input
-                    style={styles.input}
-                    type="time"
-                    value={form.startTime}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        startTime: e.target.value,
-                      }))
-                    }
+                    type="checkbox"
+                    checked={form.equipmentRequired.includes("bed")}
+                    onChange={() => toggleEquipment("bed")}
                   />
+                  Bed
                 </label>
 
-                <label style={styles.label}>
-                  End time
+                <label style={styles.checkboxLabel}>
                   <input
-                    style={styles.input}
-                    type="time"
-                    value={form.endTime}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, endTime: e.target.value }))
-                    }
+                    type="checkbox"
+                    checked={form.equipmentRequired.includes("desk")}
+                    onChange={() => toggleEquipment("desk")}
                   />
+                  Desk
+                </label>
+
+                <label style={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={form.equipmentRequired.includes("kitchen")}
+                    onChange={() => toggleEquipment("kitchen")}
+                  />
+                  Kitchen
+                </label>
+
+                <label style={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={form.equipmentRequired.includes("other")}
+                    onChange={() => toggleEquipment("other")}
+                  />
+                  Other
                 </label>
               </div>
+            </div>
 
+            {form.equipmentRequired.includes("other") ? (
               <label style={styles.label}>
-                Is this a sleepover request?
-                <select
+                What other equipment is required?
+                <input
                   style={styles.input}
-                  value={form.sleepover}
+                  value={form.otherEquipment}
                   onChange={(e) =>
                     setForm((prev) => ({
                       ...prev,
-                      sleepover: e.target.value as "yes" | "no",
+                      otherEquipment: e.target.value,
                     }))
                   }
-                >
-                  <option value="no">No</option>
-                  <option value="yes">Yes</option>
-                </select>
-              </label>
-
-              <div style={styles.label}>
-                <span>Equipment required</span>
-
-                <div style={styles.checkboxGroup}>
-                  <label style={styles.checkboxLabel}>
-                    <input
-                      type="checkbox"
-                      checked={form.equipmentRequired.includes("bed")}
-                      onChange={() => toggleEquipment("bed")}
-                    />
-                    Bed
-                  </label>
-
-                  <label style={styles.checkboxLabel}>
-                    <input
-                      type="checkbox"
-                      checked={form.equipmentRequired.includes("desk")}
-                      onChange={() => toggleEquipment("desk")}
-                    />
-                    Desk
-                  </label>
-
-                  <label style={styles.checkboxLabel}>
-                    <input
-                      type="checkbox"
-                      checked={form.equipmentRequired.includes("kitchen")}
-                      onChange={() => toggleEquipment("kitchen")}
-                    />
-                    Kitchen
-                  </label>
-
-                  <label style={styles.checkboxLabel}>
-                    <input
-                      type="checkbox"
-                      checked={form.equipmentRequired.includes("other")}
-                      onChange={() => toggleEquipment("other")}
-                    />
-                    Other
-                  </label>
-                </div>
-              </div>
-
-              {form.equipmentRequired.includes("other") ? (
-                <label style={styles.label}>
-                  What other equipment is required?
-                  <input
-                    style={styles.input}
-                    value={form.otherEquipment}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        otherEquipment: e.target.value,
-                      }))
-                    }
-                    placeholder="Example: Air mattress, monitor, extra chair"
-                  />
-                </label>
-              ) : null}
-
-              <label style={styles.label}>
-                Purpose (optional)
-                <textarea
-                  style={styles.textarea}
-                  value={form.purpose}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, purpose: e.target.value }))
-                  }
-                  placeholder="Optional details"
+                  placeholder="Example: Air mattress, monitor, extra chair"
                 />
               </label>
+            ) : null}
 
-              <button type="submit" style={styles.button} disabled={submitting}>
-                {submitting ? "Submitting..." : "Submit request"}
-              </button>
-            </form>
-          </section>
+            <label style={styles.label}>
+              Purpose (optional)
+              <textarea
+                style={styles.textarea}
+                value={form.purpose}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, purpose: e.target.value }))
+                }
+                placeholder="Optional details"
+              />
+            </label>
 
-          <section style={styles.card}>
-            <h2>Admin view</h2>
-
-            {loading ? (
-              <p>Loading requests...</p>
-            ) : requests.length === 0 ? (
-              <p>No requests yet.</p>
-            ) : (
-              <div style={styles.requestList}>
-                {requests.map((request) => (
-                  <div key={request.id} style={styles.requestCard}>
-                    <p>
-                      <strong>Request:</strong> {request.request_title}
-                    </p>
-                    <p>
-                      <strong>Date:</strong> {request.date}
-                    </p>
-                    <p>
-                      <strong>Time:</strong> {request.start_time} to{" "}
-                      {request.end_time}
-                    </p>
-                    <p>
-                      <strong>Sleepover:</strong> {request.sleepover}
-                    </p>
-                    <p>
-                      <strong>Equipment required:</strong>{" "}
-                      {formatEquipment(request)}
-                    </p>
-                    <p>
-                      <strong>Purpose:</strong>{" "}
-                      {request.purpose ? request.purpose : "Not provided"}
-                    </p>
-                    <p>
-                      <strong>Status:</strong>{" "}
-                      <span style={statusStyle(request.status)}>
-                        {request.status}
-                      </span>
-                    </p>
-
-                    {request.status === "pending" ? (
-                      <div style={styles.actions}>
-                        <button
-                          type="button"
-                          style={styles.approveButton}
-                          onClick={() =>
-                            updateRequestStatus(request.id, "approved")
-                          }
-                        >
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          style={styles.denyButton}
-                          onClick={() =>
-                            updateRequestStatus(request.id, "denied")
-                          }
-                        >
-                          Deny
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
+            <button type="submit" style={styles.button} disabled={submitting}>
+              {submitting ? "Submitting..." : "Submit request"}
+            </button>
+          </form>
+        </section>
       </div>
     </main>
   );
-}
-
-function statusStyle(status: RequestStatus): React.CSSProperties {
-  if (status === "approved") return { color: "green", fontWeight: 700 };
-  if (status === "denied") return { color: "crimson", fontWeight: 700 };
-  return { color: "#a16207", fontWeight: 700 };
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -452,7 +273,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "Arial, sans-serif",
   },
   container: {
-    maxWidth: "1100px",
+    maxWidth: "760px",
     margin: "0 auto",
   },
   title: {
@@ -464,22 +285,6 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: "24px",
     color: "#555",
   },
-  statsRow: {
-    display: "flex",
-    gap: "16px",
-    marginBottom: "24px",
-    flexWrap: "wrap",
-  },
-  statCard: {
-    background: "white",
-    borderRadius: "12px",
-    padding: "16px 20px",
-    minWidth: "120px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "6px",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-  },
   message: {
     background: "#eef2ff",
     border: "1px solid #c7d2fe",
@@ -487,11 +292,6 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "12px 16px",
     borderRadius: "10px",
     marginBottom: "24px",
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "24px",
   },
   card: {
     background: "white",
@@ -531,39 +331,6 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "10px",
     padding: "12px 16px",
     fontSize: "14px",
-    cursor: "pointer",
-  },
-  requestList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "12px",
-    marginTop: "16px",
-  },
-  requestCard: {
-    border: "1px solid #e5e7eb",
-    borderRadius: "12px",
-    padding: "14px",
-    lineHeight: 1.6,
-  },
-  actions: {
-    display: "flex",
-    gap: "10px",
-    marginTop: "12px",
-  },
-  approveButton: {
-    background: "green",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    padding: "10px 14px",
-    cursor: "pointer",
-  },
-  denyButton: {
-    background: "crimson",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    padding: "10px 14px",
     cursor: "pointer",
   },
   timeRow: {
